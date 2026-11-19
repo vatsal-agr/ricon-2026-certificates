@@ -1,0 +1,11 @@
+{
+  "name": "ricon-2026-certificate-portal",
+  "version": "1.0.0",
+  "description": "RICON 2026 Certificate Generator Portal - Deployable to Vercel Free Tier",
+  "scripts": {
+    "start": "npx serve ."
+  },
+  "keywords": ["ricon", "certificates", "bhu", "iria"],
+  "author": "RICON 2026 Team",
+  "license": "MIT"
+}
