@@ -193,7 +193,12 @@
 
   <!-- Footer -->
   <footer class="border-t border-slate-800 py-6 text-center text-xs text-slate-500">
-    <p>&copy; 2026 Department of Radiodiagnosis, IMS BHU & Varanasi Chapter of IRIA. All rights reserved.</p>
+    <div class="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <p>&copy; 2026 Department of Radiodiagnosis, IMS BHU & Varanasi Chapter of IRIA. All rights reserved.</p>
+      <a href="admin.html" class="inline-flex items-center gap-1 text-slate-400 hover:text-amber-400 transition font-medium">
+        <span>Admin Logs</span> &rarr;
+      </a>
+    </div>
   </footer>
 
   <script>
@@ -363,7 +368,50 @@
 
       const pdfBytes = await pdfDoc.save();
       const filename = formatFilename(name, config.typeLabel);
-      return { pdfBytes, filename };
+      return { pdfBytes, filename, name, institute, title, type: selectedType };
+    }
+
+    const LOGS_STORAGE_KEY = "ricon_cert_logs_v1";
+    const SHARED_KV_URL = "https://kvdb.io/2UvWp4Z8bZ9C6B1M7H4pXj/ricon_logs";
+
+    async function logActivity(action, details) {
+      const entry = {
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        timestamp: new Date().toISOString(),
+        action: action,
+        name: details.name || '',
+        type: details.type || '',
+        institute: details.institute || '',
+        title: details.title || '',
+        filename: details.filename || ''
+      };
+
+      // 1. Local Storage
+      try {
+        const raw = localStorage.getItem(LOGS_STORAGE_KEY);
+        const existing = raw ? JSON.parse(raw) : [];
+        existing.unshift(entry);
+        localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(existing.slice(0, 500)));
+      } catch (e) {
+        console.warn("Local log write failed", e);
+      }
+
+      // 2. Shared Cloud DB
+      try {
+        let remoteList = [];
+        const res = await fetch(SHARED_KV_URL);
+        if (res.ok) {
+          remoteList = await res.json();
+        }
+        remoteList.unshift(entry);
+        await fetch(SHARED_KV_URL, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(remoteList.slice(0, 1000))
+        });
+      } catch (e) {
+        // Fallback silently if offline
+      }
     }
 
     function showStatus(msg, isError = false) {
@@ -385,7 +433,8 @@
         btn.innerHTML = 'Generating PDF...';
         showStatus('Processing certificate...', false);
 
-        const { pdfBytes, filename } = await buildCertificatePdf();
+        const { pdfBytes, filename, name, institute, title, type } = await buildCertificatePdf();
+        logActivity('DOWNLOAD', { name, type, institute, title, filename });
 
         const blob = new Blob([pdfBytes], { type: 'application/octet-stream' });
         const url = URL.createObjectURL(blob);
@@ -416,7 +465,9 @@
         btn.disabled = true;
         showStatus('Rendering live preview...', false);
 
-        const { pdfBytes } = await buildCertificatePdf();
+        const { pdfBytes, filename, name, institute, title, type } = await buildCertificatePdf();
+        logActivity('PREVIEW', { name, type, institute, title, filename });
+
         const blob = new Blob([pdfBytes], { type: 'application/pdf' });
         const url = URL.createObjectURL(blob);
 
